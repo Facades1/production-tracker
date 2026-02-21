@@ -1,0 +1,7 @@
+SL.no,Date,Zone,Scope,Engineer,Project,BOQ,Subproduct-Description,Typology,Batch Qty,CL No,PI NO,Actual Qty,HO Qty,Actual Sqm,HO Sqm
+1,01/02/2026,Z1,Facade,Arun,Proj-A,BOQ-01,Panel A,T1,50,CL-101,PI-001,40,35,120.5,100
+2,02/02/2026,Z2,Glazing,Bala,Proj-B,BOQ-02,Glass B,T2,30,CL-102,PI-002,28,25,80,70
+2,,,,,,,,,,,,,,,
+2,,,,,,,,,,,,,,,
+2,,,,,,,,,,,,,,,
+2,,,,,,,,,,,,,,,
