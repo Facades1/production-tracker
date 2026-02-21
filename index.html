@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Production Tracker (Scroll + Robust CSV)</title>
+  <title>Production Tracker (Pagination + Robust CSV)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- CSS (Bootstrap + DataTables) -->
@@ -10,16 +10,14 @@
   <link href="https://cdn.datatables.net/v/bs5/dt-2.0.7/fh-4.0.1/r-3.0.3/b-3.1.2/datatables.min.css" rel="stylesheet">
 
   <style>
-    /* ---- Page look & feel ---- */
+    /* Page look & feel */
     body { padding: 16px; }
     .filter-bar .form-control { height: 36px; }
     .table thead th { white-space: nowrap; }  /* prevent header wrap */
 
-    /* ---- Scroll settings ---- */
-    /* Controls the visible height of the scrollable data area */
-    #prodTable_wrapper .dataTables_scrollBody {
-      max-height: 70vh !important;  /* adjust 60vh / 65vh / 80vh as you like */
-    }
+    /* Optional: make footer area a bit spaced */
+    div.dataTables_info { margin-top: .25rem; }
+    div.dataTables_paginate { margin-top: .25rem; }
   </style>
 </head>
 <body>
@@ -93,126 +91,9 @@
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
   <script>
-    /* ========== Helpers ========== */
+    /* ========= Helpers ========= */
 
-    // Convert DD/MM/YYYY -> YYYY-MM-DD for exact date filtering
+    // Convert DD/MM/YYYY -> YYYY-MM-DD (for <input type="date"> comparison)
     function toISODate(d) {
       if (!d) return '';
-      if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d; // already ISO
-      const m = d.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-      return m ? `${m[3]}-${m[2]}-${m[1]}` : d;
-    }
-
-    // Load CSV from ROOT (data.csv) using PapaParse (handles quotes/commas)
-    function loadCSV() {
-      return new Promise((resolve, reject) => {
-        Papa.parse('data.csv', {
-          download: true,
-          header: true,
-          skipEmptyLines: true,
-          complete: (res) => resolve(res.data),
-          error: (err) => reject(err)
-        });
-      });
-    }
-
-    /* ========== Main ========== */
-
-    let dt, rawRows = [];
-
-    async function init() {
-      try {
-        rawRows = await loadCSV();
-      } catch (e) {
-        console.error('CSV load error', e);
-        rawRows = [];
-      }
-
-      // Build table rows in fixed order; store ISO date for filtering
-      const rows = rawRows.map((obj, idx) => {
-        const get = (k) => obj[k] ?? obj[k?.trim?.()] ?? '';
-        const dispDate = get('Date');
-        obj.__isoDate = toISODate(dispDate); // store for filter
-        return [
-          get('SL.no') || String(idx + 1), dispDate, get('Zone'), get('Scope'),
-          get('Engineer'), get('Project'), get('BOQ'),
-          get('Subproduct-Description'), get('Typology'), get('Batch Qty'),
-          get('CL No'), get('PI NO'), get('Actual Qty'), get('HO Qty'),
-          get('Actual Sqm'), get('HO Sqm')
-        ];
-      });
-
-      // Init DataTable with SCROLL (no pagination)
-      dt = new DataTable('#prodTable', {
-        data: rows,
-        columns: [
-          { title: 'SL.no' }, { title: 'Date' }, { title: 'Zone' }, { title: 'Scope' },
-          { title: 'Engineer' }, { title: 'Project' }, { title: 'BOQ' },
-          { title: 'Subproduct-Description' }, { title: 'Typology' }, { title: 'Batch Qty' },
-          { title: 'CL No' }, { title: 'PI NO' }, { title: 'Actual Qty' }, { title: 'HO Qty' },
-          { title: 'Actual Sqm' }, { title: 'HO Sqm' }
-        ],
-
-        /* ---- scroll settings ---- */
-        paging: false,            // remove pagination
-        scrollY: '65vh',          // vertical scroll height
-        scrollX: true,            // horizontal scroll for many columns
-        scrollCollapse: true,     // shrink if fewer rows
-        deferRender: true,        // smoother with big data
-
-        responsive: true,
-        fixedHeader: true,
-        dom: 'Bfrtip',
-        buttons: ['copy', 'csv', 'excel', 'print'],
-        order: [[1, 'asc']]
-      });
-
-      // Bind filter buttons
-      document.getElementById('btnSearch').addEventListener('click', applyFilters);
-      document.getElementById('btnReset').addEventListener('click', () => {
-        ['fDate','fZone','fScope','fPiNo','fActualQty','fHoQty'].forEach(id => document.getElementById(id).value = '');
-        $.fn.dataTable.ext.search = [];
-        dt.search('').columns().search('');
-        dt.draw();
-      });
-    }
-
-    function applyFilters() {
-      const vDate = document.getElementById('fDate').value.trim(); // ISO
-      const vZone = document.getElementById('fZone').value.trim();
-      const vScope= document.getElementById('fScope').value.trim();
-      const vPi   = document.getElementById('fPiNo').value.trim();
-      const vAct  = document.getElementById('fActualQty').value.trim();
-      const vHo   = document.getElementById('fHoQty').value.trim();
-
-      dt.columns().search('');
-      if (vZone)  dt.column(2).search(vZone,  true, false);
-      if (vScope) dt.column(3).search(vScope, true, false);
-      if (vPi)    dt.column(11).search(vPi,   true, false);
-
-      $.fn.dataTable.ext.search = [];
-
-      // Date exact (compare ISO we stored from CSV)
-      if (vDate) {
-        $.fn.dataTable.ext.search.push((settings, data, dataIndex) => {
-          const iso = (window.rawRows?.[dataIndex]?.__isoDate) || '';
-          return iso === vDate;
-        });
-      }
-      if (vAct) {
-        $.fn.dataTable.ext.search.push((s, d) => parseFloat(d[12] || '0') >= parseFloat(vAct));
-      }
-      if (vHo) {
-        $.fn.dataTable.ext.search.push((s, d) => parseFloat(d[13] || '0') >= parseFloat(vHo));
-      }
-
-      dt.draw();
-    }
-
-    // Start
-    window.addEventListener('DOMContentLoaded', () => {
-      init().then(() => { window.rawRows = rawRows; });
-    });
-  </script>
-</body>
-</html>
+      if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;  // already ISO
