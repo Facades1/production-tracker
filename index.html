@@ -2,98 +2,424 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Production Tracker (Pagination + Robust CSV)</title>
+  <title>Production Dashboard (ASSY / Machining – Plan vs Act)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- CSS (Bootstrap + DataTables) -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdn.datatables.net/v/bs5/dt-2.0.7/fh-4.0.1/r-3.0.3/b-3.1.2/datatables.min.css" rel="stylesheet">
+  <!-- Bootstrap (layout) -->
+  https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css
 
   <style>
-    /* Page look & feel */
-    body { padding: 16px; }
-    .filter-bar .form-control { height: 36px; }
-    .table thead th { white-space: nowrap; }  /* prevent header wrap */
+    :root{
+      --c-acp:#8bb6e1;        /* light blue */
+      --c-ww:#9bd0e3;         /* blue-grey */
+      --c-doors:#9ad197;      /* green */
+      --c-non:#ebb4a8;        /* peach */
+      --c-ucw:#f2c041;        /* yellow */
+      --c-title:#3a3a3a;
+      --grid-gap: 20px;
+      --cell-h: 32px;
+    }
+    body{ padding:16px; background:#fff; }
+    h4,h5{ color:var(--c-title); margin:0 0 10px 0; }
+    .grid{
+      display:grid;
+      gap: var(--grid-gap);
+      grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+      align-items:start;
+    }
+    .card{
+      border:1px solid #dcdcdc; border-radius:8px; background:#fff;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .card-header{
+      font-weight:600; padding:8px 12px; border-bottom:1px solid #eee;
+      background:linear-gradient(180deg,#fafafa,#f3f3f3);
+    }
+    .card-body{ padding:12px; }
 
-    /* Optional: make footer area a bit spaced */
-    div.dataTables_info { margin-top: .25rem; }
-    div.dataTables_paginate { margin-top: .25rem; }
+    /* Small matrix tables */
+    .mat{
+      width:100%;
+      border-collapse:collapse;
+      table-layout:fixed;
+      font-size:13px;
+    }
+    .mat th, .mat td{
+      border:1px solid #cfcfcf; text-align:center; height:var(--cell-h);
+      padding:0 6px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
+    }
+    .mat thead th{ font-weight:700; }
+    .mat .subhead{ font-size:12px; font-weight:700; }
+    .mat .date-cell{ text-align:left; padding-left:8px; font-weight:600; background:#fbfbfb; }
+
+    /* Scope color bands */
+    .bg-acp{ background:var(--c-acp); }
+    .bg-ww{  background:var(--c-ww);  }
+    .bg-doors{ background:var(--c-doors); }
+    .bg-non{ background:var(--c-non); }
+    .bg-ucw{ background:var(--c-ucw); }
+
+    /* Top filters/info */
+    .toolbar{ margin-bottom:16px; }
+    .toolbar .form-control{ height:36px; }
+    .legend .badge{ margin-right:8px; }
+    .note{ font-size:12px; color:#777; }
+
+    /* Make long dashboards scroll inside page on small screens */
+    @media (max-width: 992px){
+      :root{ --grid-gap: 12px; }
+    }
   </style>
 </head>
 <body>
-  <h4 class="mb-3">Production Tracker</h4>
+  <h4 class="mb-2">Production Dashboard</h4>
 
-  <!-- Filters -->
-  <div class="filter-bar row g-2 align-items-end mb-2">
+  <!-- Filters / Range -->
+  <div class="toolbar row g-2 align-items-end">
     <div class="col-6 col-md-2">
-      <label class="form-label">Date</label>
-      <input type="date" id="fDate" class="form-control">
+      <label class="form-label">From (Date)</label>
+      <input type="date" id="fFrom" class="form-control">
     </div>
     <div class="col-6 col-md-2">
-      <label class="form-label">Zone</label>
-      <input type="text" id="fZone" class="form-control" placeholder="e.g., Yellow">
+      <label class="form-label">To (Date)</label>
+      <input type="date" id="fTo" class="form-control">
     </div>
     <div class="col-6 col-md-2">
-      <label class="form-label">Scope</label>
-      <input type="text" id="fScope" class="form-control" placeholder="ACP / WW…">
+      <label class="form-label">Engineer (contains)</label>
+      <input type="text" id="fEngineer" class="form-control" placeholder="Thangavel">
     </div>
     <div class="col-6 col-md-2">
-      <label class="form-label">PI NO</label>
-      <input type="text" id="fPiNo" class="form-control" placeholder="PI/...">
+      <label class="form-label">Project (contains)</label>
+      <input type="text" id="fProject" class="form-control" placeholder="Sobha One">
     </div>
     <div class="col-6 col-md-2">
-      <label class="form-label">Actual Qty ≥</label>
-      <input type="number" id="fActualQty" class="form-control" placeholder="0">
-    </div>
-    <div class="col-6 col-md-2">
-      <label class="form-label">HO Qty ≥</label>
-      <input type="number" id="fHoQty" class="form-control" placeholder="0">
-    </div>
-    <div class="col-6 col-md-2">
-      <button id="btnSearch" class="btn btn-primary w-100">Search</button>
+      <button id="btnApply" class="btn btn-primary w-100">Apply</button>
     </div>
     <div class="col-6 col-md-2">
       <button id="btnReset" class="btn btn-outline-secondary w-100">Reset</button>
     </div>
+    <div class="col-12">
+      <div class="legend mt-2">
+        <span class="badge" style="background:var(--c-acp)">ACP</span>
+        <span class="badge" style="background:var(--c-ww)">WW/SCW</span>
+        <span class="badge" style="background:var(--c-doors)">DOORS</span>
+        <span class="badge" style="background:var(--c-non)">NON‑SYSTEM</span>
+        <span class="badge" style="background:var(--c-ucw)">UCW</span>
+        <span class="ms-2 note">Defaults: PLAN=HO, ACT=ACT. You can change mappings in the code constants.</span>
+      </div>
+    </div>
   </div>
 
-  <!-- Table -->
-  <div class="table-responsive">
-    <table id="prodTable" class="table table-striped table-bordered table-sm" style="width:100%">
-      <thead class="table-light">
-        <tr>
-          <th>SL.no</th>
-          <th>Date</th>
-          <th>Zone</th>
-          <th>Scope</th>
-          <th>Engineer</th>
-          <th>Project</th>
-          <th>BOQ</th>
-          <th>Subproduct-Description</th>
-          <th>Typology</th>
-          <th>Batch Qty</th>
-          <th>CL No</th>
-          <th>PI NO</th>
-          <th>Actual Qty</th>
-          <th>HO Qty</th>
-          <th>Actual Sqm</th>
-          <th>HO Sqm</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
+  <!-- Dashboard grid -->
+  <div class="grid">
+    <!-- ASSY SQM -->
+    <div class="card">
+      <div class="card-header">ASSY — SQM</div>
+      <div class="card-body">
+        <table class="mat" id="tblAssySqm">
+          <thead>
+            <tr>
+              <th rowspan="2" style="width:110px">date</th>
+              <th colspan="3">SQM</th>
+            </tr>
+            <tr class="subhead">
+              <th>PLAN</th>
+              <th>ACT</th>
+              <th>HO SQM</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- MACHINING SQM -->
+    <div class="card">
+      <div class="card-header">MACHINING — SQM</div>
+      <div class="card-body">
+        <table class="mat" id="tblMachSqm">
+          <thead>
+            <tr>
+              <th rowspan="2" style="width:110px">date</th>
+              <th colspan="2">SQM</th>
+            </tr>
+            <tr class="subhead">
+              <th>PLAN</th>
+              <th>ACT</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div class="note mt-1">If you maintain separate machining rows, this table will use the same SQM mappings; otherwise it mirrors ASSY SQM totals.</div>
+      </div>
+    </div>
+
+    <!-- ASSY by Scope (Qty) -->
+    <div class="card">
+      <div class="card-header">ASSY — Scope wise (QTY)</div>
+      <div class="card-body">
+        <table class="mat" id="tblAssyScopeQty">
+          <thead>
+            <tr>
+              <th rowspan="2" style="width:110px">date</th>
+              <th class="bg-acp" colspan="2">ACP</th>
+              <th class="bg-ww" colspan="2">WW/SCW</th>
+              <th class="bg-doors" colspan="2">DOORS</th>
+              <th class="bg-non" colspan="2">NON‑SYSTEM</th>
+              <th class="bg-ucw" colspan="2">UCW</th>
+            </tr>
+            <tr class="subhead">
+              <th>PLAN</th><th>ACT</th>
+              <th>PLAN</th><th>ACT</th>
+              <th>PLAN</th><th>ACT</th>
+              <th>PLAN</th><th>ACT</th>
+              <th>PLAN</th><th>ACT</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- MACHINING by Scope (Qty) -->
+    <div class="card">
+      <div class="card-header">Machining — Scope wise (QTY)</div>
+      <div class="card-body">
+        <table class="mat" id="tblMachScopeQty">
+          <thead>
+            <tr>
+              <th rowspan="2" style="width:110px">date</th>
+              <th class="bg-acp" colspan="2">ACP</th>
+              <th class="bg-ww" colspan="2">WW/SCW</th>
+              <th class="bg-doors" colspan="2">DOORS</th>
+              <th class="bg-non" colspan="2">NON‑SYSTEM</th>
+              <th class="bg-ucw" colspan="2">UCW</th>
+            </tr>
+            <tr class="subhead">
+              <th>PLAN</th><th>ACT</th>
+              <th>PLAN</th><th>ACT</th>
+              <th>PLAN</th><th>ACT</th>
+              <th>PLAN</th><th>ACT</th>
+              <th>PLAN</th><th>ACT</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div class="note mt-1">If you don’t separate Machining rows in CSV, this table will mirror ASSY scope totals.</div>
+      </div>
+    </div>
   </div>
 
-  <!-- JS (jQuery, Bootstrap, DataTables, PapaParse) -->
-  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdn.datatables.net/v/bs5/dt-2.0.7/fh-4.0.1/r-3.0.3/b-3.1.2/datatables.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <!-- JS libs -->
+  https://code.jquery.com/jquery-3.7.1.min.js</script>
+  https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js</script>
+  https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js</script>
 
   <script>
-    /* ========= Helpers ========= */
+    /***********************
+     * CONFIG: field mapping
+     ***********************/
+    const CSV_PATH            = 'data.csv';   // change to 'data/data.csv' if needed
 
-    // Convert DD/MM/YYYY -> YYYY-MM-DD (for <input type="date"> comparison)
-    function toISODate(d) {
-      if (!d) return '';
-      if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;  // already ISO
+    // By default, PLAN uses HO fields; change as per your process.
+    const PLAN_QTY_FIELD     = 'HO Qty';
+    const ACT_QTY_FIELD      = 'Actual Qty';
+    const PLAN_SQM_FIELD     = 'HO Sqm';
+    const ACT_SQM_FIELD      = 'Actual Sqm';
+
+    // Which column identifies scope buckets
+    const SCOPE_FIELD        = 'Scope';
+    const SCOPE_BUCKETS      = ['ACP','WW/SCW','DOORS','NON-SYSTEM','UCW'];
+
+    // Number of date rows to show (latest first)
+    const MAX_DATES          = 10;
+
+    /***********************
+     * Helpers
+     ***********************/
+    const trim = v => (v ?? '').toString().trim();
+    const num  = v => {
+      const t = (v ?? '').toString().replace(/,/g,'').trim();
+      const n = parseFloat(t); return isNaN(n) ? 0 : n;
+    };
+
+    // Accepts 'YYYY-MM-DD' or 'DD/MM/YYYY' → returns ISO 'YYYY-MM-DD'
+    function toISO(d){
+      if(!d) return '';
+      d = trim(d);
+      if(/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+      const m = d.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      return m ? `${m[3]}-${m[2]}-${m[1]}` : d;
+    }
+    // ISO → 'DD/MM/YYYY' for display
+    function toDMY(iso){
+      const m = (iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
+    }
+
+    function inRange(iso, fromISO, toISO){
+      if(fromISO && iso < fromISO) return false;
+      if(toISO   && iso > toISO)   return false;
+      return true;
+    }
+
+    /***********************
+     * Load + Aggregate
+     ***********************/
+    let RAW = [];   // raw rows
+    let AGG = {};   // { [isoDate]: { assy:{planSqm, actSqm, hoSqm}, scope:{ [bucket]:{planQty, actQty} } } }
+                    // For Machining, we’ll reuse same totals unless you split later.
+
+    async function loadCSV(){
+      return new Promise((resolve, reject)=>{
+        Papa.parse(CSV_PATH, {
+          download:true, header:true, skipEmptyLines:true, worker:true,
+          complete: res => resolve(res.data),
+          error: reject
+        });
+      });
+    }
+
+    function aggregate(rows, fromISO, toISO, engineerLike, projectLike){
+      AGG = {};
+      const like = (v, q) => !q || trim(v).toLowerCase().includes(q.toLowerCase());
+
+      rows.forEach((r, idx)=>{
+        const iso  = toISO(r['Date']);
+        if(!iso) return;
+        if(!inRange(iso, fromISO, toISO)) return;
+        if(!like(r['Engineer'], engineerLike)) return;
+        if(!like(r['Project'],  projectLike)) return;
+
+        const scope = trim(r[SCOPE_FIELD]).toUpperCase();
+        const planQty = num(r[PLAN_QTY_FIELD]);
+        const actQty  = num(r[ACT_QTY_FIELD]);
+        const planSqm = num(r[PLAN_SQM_FIELD]);
+        const actSqm  = num(r[ACT_SQM_FIELD]);
+        const hoSqm   = num(r['HO Sqm']); // keep separate if needed
+
+        if(!AGG[iso]) {
+          AGG[iso] = {
+            assy: { planSqm:0, actSqm:0, hoSqm:0 },
+            mach: { planSqm:0, actSqm:0 }, // if you split later, modify here
+            scope: {}
+          };
+          SCOPE_BUCKETS.forEach(b => AGG[iso].scope[b] = { planQty:0, actQty:0 });
+        }
+
+        // ASSY totals (SQM)
+        AGG[iso].assy.planSqm += planSqm;
+        AGG[iso].assy.actSqm  += actSqm;
+        AGG[iso].assy.hoSqm   += hoSqm;
+
+        // Machining SQM (mirror unless you change the rule)
+        AGG[iso].mach.planSqm += planSqm;
+        AGG[iso].mach.actSqm  += actSqm;
+
+        // Scope-wise QTY
+        const bucket = SCOPE_BUCKETS.includes(scope) ? scope : null;
+        if(bucket){
+          AGG[iso].scope[bucket].planQty += planQty;
+          AGG[iso].scope[bucket].actQty  += actQty;
+        }
+      });
+    }
+
+    /***********************
+     * Render small matrices
+     ***********************/
+    function renderAssySqm(dates){
+      const tb = document.querySelector('#tblAssySqm tbody');
+      tb.innerHTML = '';
+      dates.forEach(iso=>{
+        const a = AGG[iso]?.assy || {planSqm:0, actSqm:0, hoSqm:0};
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="date-cell">${toDMY(iso)}</td>
+          <td>${a.planSqm.toFixed(2)}</td>
+          <td>${a.actSqm.toFixed(2)}</td>
+          <td>${a.hoSqm.toFixed(2)}</td>
+        `;
+        tb.appendChild(tr);
+      });
+    }
+
+    function renderMachSqm(dates){
+      const tb = document.querySelector('#tblMachSqm tbody');
+      tb.innerHTML = '';
+      dates.forEach(iso=>{
+        const m = AGG[iso]?.mach || {planSqm:0, actSqm:0};
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="date-cell">${toDMY(iso)}</td>
+          <td>${m.planSqm.toFixed(2)}</td>
+          <td>${m.actSqm.toFixed(2)}</td>
+        `;
+        tb.appendChild(tr);
+      });
+    }
+
+    function renderScopeQty(tableId, dates){
+      const tb = document.querySelector('#'+tableId+' tbody');
+      tb.innerHTML = '';
+      dates.forEach(iso=>{
+        const s = AGG[iso]?.scope || {};
+        const row = [
+          `<td class="date-cell">${toDMY(iso)}</td>`
+        ];
+
+        SCOPE_BUCKETS.forEach(b=>{
+          const v = s[b] || {planQty:0, actQty:0};
+          row.push(`<td>${v.planQty}</td>`);
+          row.push(`<td>${v.actQty}</td>`);
+        });
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = row.join('');
+        tb.appendChild(tr);
+      });
+    }
+
+    function refresh(){
+      // collect dates, sort DESC, limit to MAX_DATES
+      let dates = Object.keys(AGG).sort().reverse().slice(0, MAX_DATES);
+      renderAssySqm(dates);
+      renderMachSqm(dates);
+      renderScopeQty('tblAssyScopeQty', dates);
+      renderScopeQty('tblMachScopeQty', dates);
+    }
+
+    /***********************
+     * Init + Events
+     ***********************/
+    let FROM_D = '', TO_D = '', F_ENG = '', F_PROJ = '';
+    async function boot(){
+      try{
+        RAW = await loadCSV();
+      }catch(e){
+        alert('CSV load error. See console.'); console.error(e); RAW = [];
+      }
+      aggregate(RAW, FROM_D, TO_D, F_ENG, F_PROJ);
+      refresh();
+
+      // Actions
+      document.getElementById('btnApply').addEventListener('click', ()=>{
+        FROM_D = document.getElementById('fFrom').value || '';
+        TO_D   = document.getElementById('fTo').value || '';
+        F_ENG  = document.getElementById('fEngineer').value || '';
+        F_PROJ = document.getElementById('fProject').value || '';
+        aggregate(RAW, FROM_D, TO_D, F_ENG, F_PROJ);
+        refresh();
+      });
+      document.getElementById('btnReset').addEventListener('click', ()=>{
+        ['fFrom','fTo','fEngineer','fProject'].forEach(id=>document.getElementById(id).value='');
+        FROM_D=TO_D=F_ENG=F_PROJ='';
+        aggregate(RAW, FROM_D, TO_D, F_ENG, F_PROJ);
+        refresh();
+      });
+    }
+
+    window.addEventListener('DOMContentLoaded', boot);
+  </script>
+</body>
+</html>
