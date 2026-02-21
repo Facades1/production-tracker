@@ -1,425 +1,256 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="ta">
 <head>
   <meta charset="utf-8" />
-  <title>Production Dashboard (ASSY / Machining – Plan vs Act)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <!-- Bootstrap (layout) -->
-  https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css
-
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Production – Plan vs Actual (All-in-One)</title>
   <style>
     :root{
-      --c-acp:#8bb6e1;        /* light blue */
-      --c-ww:#9bd0e3;         /* blue-grey */
-      --c-doors:#9ad197;      /* green */
-      --c-non:#ebb4a8;        /* peach */
-      --c-ucw:#f2c041;        /* yellow */
-      --c-title:#3a3a3a;
-      --grid-gap: 20px;
-      --cell-h: 32px;
+      --bg:#f2f4f7; --grid:#c9cdd2; --text:#1f2937; --muted:#6b7280;
+      --assy:#7fbf7f; --mach:#b8b8b8; --acp:#6a8fbf; --ww:#91a8c4;
+      --doors:#8ebf7a; --non:#d1977c; --ucw:#d6a31a;
+      --ok:#e6ffed; --low:#ffeaea;
     }
-    body{ padding:16px; background:#fff; }
-    h4,h5{ color:var(--c-title); margin:0 0 10px 0; }
-    .grid{
-      display:grid;
-      gap: var(--grid-gap);
-      grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
-      align-items:start;
-    }
-    .card{
-      border:1px solid #dcdcdc; border-radius:8px; background:#fff;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-    }
-    .card-header{
-      font-weight:600; padding:8px 12px; border-bottom:1px solid #eee;
-      background:linear-gradient(180deg,#fafafa,#f3f3f3);
-    }
-    .card-body{ padding:12px; }
-
-    /* Small matrix tables */
-    .mat{
-      width:100%;
-      border-collapse:collapse;
-      table-layout:fixed;
-      font-size:13px;
-    }
-    .mat th, .mat td{
-      border:1px solid #cfcfcf; text-align:center; height:var(--cell-h);
-      padding:0 6px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
-    }
-    .mat thead th{ font-weight:700; }
-    .mat .subhead{ font-size:12px; font-weight:700; }
-    .mat .date-cell{ text-align:left; padding-left:8px; font-weight:600; background:#fbfbfb; }
-
-    /* Scope color bands */
-    .bg-acp{ background:var(--c-acp); }
-    .bg-ww{  background:var(--c-ww);  }
-    .bg-doors{ background:var(--c-doors); }
-    .bg-non{ background:var(--c-non); }
-    .bg-ucw{ background:var(--c-ucw); }
-
-    /* Top filters/info */
-    .toolbar{ margin-bottom:16px; }
-    .toolbar .form-control{ height:36px; }
-    .legend .badge{ margin-right:8px; }
-    .note{ font-size:12px; color:#777; }
-
-    /* Make long dashboards scroll inside page on small screens */
-    @media (max-width: 992px){
-      :root{ --grid-gap: 12px; }
-    }
+    *{box-sizing:border-box}
+    body{margin:0;padding:24px;background:var(--bg);font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;color:var(--text)}
+    h2{margin:0 0 12px}
+    .wrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:28px}
+    .board{background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 1px 2px rgba(0,0,0,.04);padding:14px}
+    .title{font-weight:800;font-size:14px;letter-spacing:.02em;margin:2px 0 10px}
+    .grid{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed}
+    .grid th,.grid td{border:1px solid var(--grid);padding:6px 8px;text-align:center;font-size:12px}
+    .grid thead th{background:#eef2f7}
+    .datecol{width:95px;white-space:nowrap}
+    .legend{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+    .chip{padding:6px 8px;border-radius:4px;color:#fff;font-weight:700;font-size:12px}
+    .chip .sub{display:block;font-weight:500;font-size:11px;opacity:.95;margin-top:2px}
+    .acp{background:var(--acp)} .ww{background:var(--ww)} .doors{background:var(--doors)}
+    .non{background:var(--non)} .ucw{background:var(--ucw)} .assyTag{background:var(--assy)}
+    .muted{color:var(--muted);font-size:11px}
+    .ok{background:var(--ok)} .low{background:var(--low)}
+    .footer{margin-top:16px;font-size:11px;color:var(--muted)}
+    .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 14px}
+    .toolbar input[type="date"]{padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px}
+    .toolbar button,label.btn{padding:6px 10px;border:1px solid #d1d5db;background:#fff;border-radius:6px;cursor:pointer;font-size:12px}
+    .toolbar button:hover,label.btn:hover{background:#f9fafb}
+    input[type="file"]{display:none}
   </style>
 </head>
 <body>
-  <h4 class="mb-2">Production Dashboard</h4>
+  <h2>Production – Plan vs Actual</h2>
+  <div class="muted">இந்தப் பக்கம் ஒரு single HTML file. Embedded sample CSV உள்ளது. உங்கள் CSV‑ஐ upload செய்து உடனே பாருங்கள்.</div>
 
-  <!-- Filters / Range -->
-  <div class="toolbar row g-2 align-items-end">
-    <div class="col-6 col-md-2">
-      <label class="form-label">From (Date)</label>
-      <input type="date" id="fFrom" class="form-control">
-    </div>
-    <div class="col-6 col-md-2">
-      <label class="form-label">To (Date)</label>
-      <input type="date" id="fTo" class="form-control">
-    </div>
-    <div class="col-6 col-md-2">
-      <label class="form-label">Engineer (contains)</label>
-      <input type="text" id="fEngineer" class="form-control" placeholder="Thangavel">
-    </div>
-    <div class="col-6 col-md-2">
-      <label class="form-label">Project (contains)</label>
-      <input type="text" id="fProject" class="form-control" placeholder="Sobha One">
-    </div>
-    <div class="col-6 col-md-2">
-      <button id="btnApply" class="btn btn-primary w-100">Apply</button>
-    </div>
-    <div class="col-6 col-md-2">
-      <button id="btnReset" class="btn btn-outline-secondary w-100">Reset</button>
-    </div>
-    <div class="col-12">
-      <div class="legend mt-2">
-        <span class="badge" style="background:var(--c-acp)">ACP</span>
-        <span class="badge" style="background:var(--c-ww)">WW/SCW</span>
-        <span class="badge" style="background:var(--c-doors)">DOORS</span>
-        <span class="badge" style="background:var(--c-non)">NON‑SYSTEM</span>
-        <span class="badge" style="background:var(--c-ucw)">UCW</span>
-        <span class="ms-2 note">Defaults: PLAN=HO, ACT=ACT. You can change mappings in the code constants.</span>
+  <div class="toolbar">
+    <label>தேதி filter:
+      <input type="date" id="dateFilter" />
+    </label>
+    <button id="clearFilter">Clear</button>
+    <button id="reloadBtn">Reload (Embedded)</button>
+
+    <!-- File uploaders -->
+    <input id="assyFile" type="file" accept=".csv" />
+    <label for="assyFile" class="btn">Upload ASSY CSV</label>
+
+    <input id="machFile" type="file" accept=".csv" />
+    <label for="machFile" class="btn">Upload Machining CSV</label>
+  </div>
+
+  <div class="wrap">
+    <!-- ASSY -->
+    <div class="board">
+      <div class="title">ASSY</div>
+      <div class="legend">
+        <div class="chip acp">ACP <span class="sub">PLAN / ACT</span></div>
+        <div class="chip ww">WW/SCW <span class="sub">PLAN / ACT</span></div>
+        <div class="chip doors">DOORS <span class="sub">PLAN / ACT</span></div>
+        <div class="chip non">NON‑SYSTEM <span class="sub">PLAN / ACT</span></div>
+        <div class="chip ucw">UCW <span class="sub">PLAN / ACT</span></div>
+        <div class="chip assyTag">SQM <span class="sub">PLAN / ACT</span></div>
       </div>
+
+      <table class="grid" id="assy" aria-label="ASSY">
+        <thead>
+          <tr>
+            <th class="datecol">date</th>
+            <th>ACP PLAN</th><th>ACP ACT</th>
+            <th>WW PLAN</th><th>WW ACT</th>
+            <th>DOORS PLAN</th><th>DOORS ACT</th>
+            <th>NON‑SYS PLAN</th><th>NON‑SYS ACT</th>
+            <th>UCW PLAN</th><th>UCW ACT</th>
+            <th>SQM PLAN</th><th>SQM ACT</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Machining -->
+    <div class="board">
+      <div class="title">Machining</div>
+      <div class="legend">
+        <div class="chip acp">ACP <span class="sub">PLAN / ACT</span></div>
+        <div class="chip ww">WW/SCW <span class="sub">PLAN / ACT</span></div>
+        <div class="chip doors">DOORS <span class="sub">PLAN / ACT</span></div>
+        <div class="chip non">NON‑SYSTEM <span class="sub">PLAN / ACT</span></div>
+        <div class="chip ucw">UCW <span class="sub">PLAN / ACT</span></div>
+      </div>
+
+      <table class="grid" id="mach" aria-label="Machining">
+        <thead>
+          <tr>
+            <th class="datecol">date</th>
+            <th>ACP PLAN</th><th>ACP ACT</th>
+            <th>WW PLAN</th><th>WW ACT</th>
+            <th>DOORS PLAN</th><th>DOORS ACT</th>
+            <th>NON‑SYS PLAN</th><th>NON‑SYS ACT</th>
+            <th>UCW PLAN</th><th>UCW ACT</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
     </div>
   </div>
 
-  <!-- Dashboard grid -->
-  <div class="grid">
-    <!-- ASSY SQM -->
-    <div class="card">
-      <div class="card-header">ASSY — SQM</div>
-      <div class="card-body">
-        <table class="mat" id="tblAssySqm">
-          <thead>
-            <tr>
-              <th rowspan="2" style="width:110px">date</th>
-              <th colspan="3">SQM</th>
-            </tr>
-            <tr class="subhead">
-              <th>PLAN</th>
-              <th>ACT</th>
-              <th>HO SQM</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- MACHINING SQM -->
-    <div class="card">
-      <div class="card-header">MACHINING — SQM</div>
-      <div class="card-body">
-        <table class="mat" id="tblMachSqm">
-          <thead>
-            <tr>
-              <th rowspan="2" style="width:110px">date</th>
-              <th colspan="2">SQM</th>
-            </tr>
-            <tr class="subhead">
-              <th>PLAN</th>
-              <th>ACT</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-        <div class="note mt-1">If you maintain separate machining rows, this table will use the same SQM mappings; otherwise it mirrors ASSY SQM totals.</div>
-      </div>
-    </div>
-
-    <!-- ASSY by Scope (Qty) -->
-    <div class="card">
-      <div class="card-header">ASSY — Scope wise (QTY)</div>
-      <div class="card-body">
-        <table class="mat" id="tblAssyScopeQty">
-          <thead>
-            <tr>
-              <th rowspan="2" style="width:110px">date</th>
-              <th class="bg-acp" colspan="2">ACP</th>
-              <th class="bg-ww" colspan="2">WW/SCW</th>
-              <th class="bg-doors" colspan="2">DOORS</th>
-              <th class="bg-non" colspan="2">NON‑SYSTEM</th>
-              <th class="bg-ucw" colspan="2">UCW</th>
-            </tr>
-            <tr class="subhead">
-              <th>PLAN</th><th>ACT</th>
-              <th>PLAN</th><th>ACT</th>
-              <th>PLAN</th><th>ACT</th>
-              <th>PLAN</th><th>ACT</th>
-              <th>PLAN</th><th>ACT</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- MACHINING by Scope (Qty) -->
-    <div class="card">
-      <div class="card-header">Machining — Scope wise (QTY)</div>
-      <div class="card-body">
-        <table class="mat" id="tblMachScopeQty">
-          <thead>
-            <tr>
-              <th rowspan="2" style="width:110px">date</th>
-              <th class="bg-acp" colspan="2">ACP</th>
-              <th class="bg-ww" colspan="2">WW/SCW</th>
-              <th class="bg-doors" colspan="2">DOORS</th>
-              <th class="bg-non" colspan="2">NON‑SYSTEM</th>
-              <th class="bg-ucw" colspan="2">UCW</th>
-            </tr>
-            <tr class="subhead">
-              <th>PLAN</th><th>ACT</th>
-              <th>PLAN</th><th>ACT</th>
-              <th>PLAN</th><th>ACT</th>
-              <th>PLAN</th><th>ACT</th>
-              <th>PLAN</th><th>ACT</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-        <div class="note mt-1">If you don’t separate Machining rows in CSV, this table will mirror ASSY scope totals.</div>
-      </div>
-    </div>
+  <div class="footer">
+    Logic: ACT &lt; PLAN → சிவப்பு, இல்லைனா இலகு பச்சை. — CSV headers பெயர்கள்:  
+    <code>date, acp_plan, acp_act, ww_plan, ww_act, doors_plan, doors_act, non_plan, non_act, ucw_plan, ucw_act, (assy மட்டும்) sqm_plan, sqm_act</code>
   </div>
 
-  <!-- JS libs -->
-  https://code.jquery.com/jquery-3.7.1.min.js</script>
-  https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js</script>
-  https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js</script>
+  <!-- Embedded sample CSVs (edit here if needed) -->
+  <script id="csv-assy" type="text/plain">
+date,acp_plan,acp_act,ww_plan,ww_act,doors_plan,doors_act,non_plan,non_act,ucw_plan,ucw_act,sqm_plan,sqm_act
+2026-02-21,120,110,80,76,45,40,15,18,60,55,900,860
+2026-02-22,130,140,85,90,44,46,20,18,62,70,920,940
+  </script>
+
+  <script id="csv-mach" type="text/plain">
+date,acp_plan,acp_act,ww_plan,ww_act,doors_plan,doors_act,non_plan,non_act,ucw_plan,ucw_act
+2026-02-21,200,190,130,120,60,54,30,28,90,88
+2026-02-22,210,220,135,140,58,60,32,30,92,96
+  </script>
 
   <script>
-    /***********************
-     * CONFIG: field mapping
-     ***********************/
-    const CSV_PATH            = 'data.csv';   // change to 'data/data.csv' if needed
-
-    // By default, PLAN uses HO fields; change as per your process.
-    const PLAN_QTY_FIELD     = 'HO Qty';
-    const ACT_QTY_FIELD      = 'Actual Qty';
-    const PLAN_SQM_FIELD     = 'HO Sqm';
-    const ACT_SQM_FIELD      = 'Actual Sqm';
-
-    // Which column identifies scope buckets
-    const SCOPE_FIELD        = 'Scope';
-    const SCOPE_BUCKETS      = ['ACP','WW/SCW','DOORS','NON-SYSTEM','UCW'];
-
-    // Number of date rows to show (latest first)
-    const MAX_DATES          = 10;
-
-    /***********************
-     * Helpers
-     ***********************/
-    const trim = v => (v ?? '').toString().trim();
-    const num  = v => {
-      const t = (v ?? '').toString().replace(/,/g,'').trim();
-      const n = parseFloat(t); return isNaN(n) ? 0 : n;
-    };
-
-    // Accepts 'YYYY-MM-DD' or 'DD/MM/YYYY' → returns ISO 'YYYY-MM-DD'
-    function toISO(d){
-      if(!d) return '';
-      d = trim(d);
-      if(/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
-      const m = d.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-      return m ? `${m[3]}-${m[2]}-${m[1]}` : d;
-    }
-    // ISO → 'DD/MM/YYYY' for display
-    function toDMY(iso){
-      const m = (iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
-    }
-
-    function inRange(iso, fromISO, toISO){
-      if(fromISO && iso < fromISO) return false;
-      if(toISO   && iso > toISO)   return false;
-      return true;
-    }
-
-    /***********************
-     * Load + Aggregate
-     ***********************/
-    let RAW = [];   // raw rows
-    let AGG = {};   // { [isoDate]: { assy:{planSqm, actSqm, hoSqm}, scope:{ [bucket]:{planQty, actQty} } } }
-                    // For Machining, we’ll reuse same totals unless you split later.
-
-    async function loadCSV(){
-      return new Promise((resolve, reject)=>{
-        Papa.parse(CSV_PATH, {
-          download:true, header:true, skipEmptyLines:true, worker:true,
-          complete: res => resolve(res.data),
-          error: reject
-        });
+    // ---------- Utilities ----------
+    function parseCSV(text){
+      // Simple CSV parser; assumes no quoted commas
+      const lines = text.trim().split(/\r?\n/).filter(Boolean);
+      if(lines.length===0) return [];
+      const headers = lines.shift().split(',').map(h=>h.trim());
+      return lines.map(line=>{
+        const cols = line.split(',').map(c=>c.trim());
+        const obj = {};
+        headers.forEach((h,i)=>obj[h]=cols[i]??'');
+        return obj;
       });
     }
+    function clearChildren(node){ while(node.firstChild) node.removeChild(node.firstChild); }
+    function toISO(d){ return d || ''; }
 
-    function aggregate(rows, fromISO, toISO, engineerLike, projectLike){
-      AGG = {};
-      const like = (v, q) => !q || trim(v).toLowerCase().includes(q.toLowerCase());
+    // ---------- Data sources (in-memory) ----------
+    let assyRows = [];
+    let machRows = [];
 
-      rows.forEach((r, idx)=>{
-        const iso  = toISO(r['Date']);
-        if(!iso) return;
-        if(!inRange(iso, fromISO, toISO)) return;
-        if(!like(r['Engineer'], engineerLike)) return;
-        if(!like(r['Project'],  projectLike)) return;
-
-        const scope = trim(r[SCOPE_FIELD]).toUpperCase();
-        const planQty = num(r[PLAN_QTY_FIELD]);
-        const actQty  = num(r[ACT_QTY_FIELD]);
-        const planSqm = num(r[PLAN_SQM_FIELD]);
-        const actSqm  = num(r[ACT_SQM_FIELD]);
-        const hoSqm   = num(r['HO Sqm']); // keep separate if needed
-
-        if(!AGG[iso]) {
-          AGG[iso] = {
-            assy: { planSqm:0, actSqm:0, hoSqm:0 },
-            mach: { planSqm:0, actSqm:0 }, // if you split later, modify here
-            scope: {}
-          };
-          SCOPE_BUCKETS.forEach(b => AGG[iso].scope[b] = { planQty:0, actQty:0 });
-        }
-
-        // ASSY totals (SQM)
-        AGG[iso].assy.planSqm += planSqm;
-        AGG[iso].assy.actSqm  += actSqm;
-        AGG[iso].assy.hoSqm   += hoSqm;
-
-        // Machining SQM (mirror unless you change the rule)
-        AGG[iso].mach.planSqm += planSqm;
-        AGG[iso].mach.actSqm  += actSqm;
-
-        // Scope-wise QTY
-        const bucket = SCOPE_BUCKETS.includes(scope) ? scope : null;
-        if(bucket){
-          AGG[iso].scope[bucket].planQty += planQty;
-          AGG[iso].scope[bucket].actQty  += actQty;
-        }
-      });
+    function loadEmbedded(){
+      const a = document.getElementById('csv-assy')?.textContent || '';
+      const m = document.getElementById('csv-mach')?.textContent || '';
+      assyRows = parseCSV(a);
+      machRows = parseCSV(m);
     }
 
-    /***********************
-     * Render small matrices
-     ***********************/
-    function renderAssySqm(dates){
-      const tb = document.querySelector('#tblAssySqm tbody');
-      tb.innerHTML = '';
-      dates.forEach(iso=>{
-        const a = AGG[iso]?.assy || {planSqm:0, actSqm:0, hoSqm:0};
+    // ---------- Rendering ----------
+    function fillTable(tableId, rows, columns, planActPairs, dateFilter){
+      const tbody = document.querySelector(`#${tableId} tbody`);
+      clearChildren(tbody);
+
+      const filtered = dateFilter ? rows.filter(r => toISO(r.date) === dateFilter) : rows;
+
+      filtered.forEach(r=>{
         const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td class="date-cell">${toDMY(iso)}</td>
-          <td>${a.planSqm.toFixed(2)}</td>
-          <td>${a.actSqm.toFixed(2)}</td>
-          <td>${a.hoSqm.toFixed(2)}</td>
-        `;
-        tb.appendChild(tr);
-      });
-    }
-
-    function renderMachSqm(dates){
-      const tb = document.querySelector('#tblMachSqm tbody');
-      tb.innerHTML = '';
-      dates.forEach(iso=>{
-        const m = AGG[iso]?.mach || {planSqm:0, actSqm:0};
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td class="date-cell">${toDMY(iso)}</td>
-          <td>${m.planSqm.toFixed(2)}</td>
-          <td>${m.actSqm.toFixed(2)}</td>
-        `;
-        tb.appendChild(tr);
-      });
-    }
-
-    function renderScopeQty(tableId, dates){
-      const tb = document.querySelector('#'+tableId+' tbody');
-      tb.innerHTML = '';
-      dates.forEach(iso=>{
-        const s = AGG[iso]?.scope || {};
-        const row = [
-          `<td class="date-cell">${toDMY(iso)}</td>`
-        ];
-
-        SCOPE_BUCKETS.forEach(b=>{
-          const v = s[b] || {planQty:0, actQty:0};
-          row.push(`<td>${v.planQty}</td>`);
-          row.push(`<td>${v.actQty}</td>`);
+        columns.forEach(c=>{
+          const td = document.createElement('td');
+          td.textContent = r[c] ?? '';
+          tr.appendChild(td);
         });
 
-        const tr = document.createElement('tr');
-        tr.innerHTML = row.join('');
-        tb.appendChild(tr);
+        // Conditional format for ACT vs PLAN
+        planActPairs.forEach(([p,a], idx)=>{
+          const pVal = Number(r[p]); const aVal = Number(r[a]);
+          if(!Number.isNaN(pVal) && !Number.isNaN(aVal)){
+            const dateOffset = 1;                 // first column is date
+            const pairIndex = idx*2;              // PLAN then ACT
+            const actCell  = tr.children[dateOffset + pairIndex + 1];
+            actCell.classList.add(aVal < pVal ? 'low' : 'ok');
+          }
+        });
+
+        tbody.appendChild(tr);
       });
     }
 
-    function refresh(){
-      // collect dates, sort DESC, limit to MAX_DATES
-      let dates = Object.keys(AGG).sort().reverse().slice(0, MAX_DATES);
-      renderAssySqm(dates);
-      renderMachSqm(dates);
-      renderScopeQty('tblAssyScopeQty', dates);
-      renderScopeQty('tblMachScopeQty', dates);
+    function renderAll(dateFilter){
+      fillTable(
+        'assy',
+        assyRows,
+        ['date','acp_plan','acp_act','ww_plan','ww_act','doors_plan','doors_act','non_plan','non_act','ucw_plan','ucw_act','sqm_plan','sqm_act'],
+        [['acp_plan','acp_act'],['ww_plan','ww_act'],['doors_plan','doors_act'],['non_plan','non_act'],['ucw_plan','ucw_act'],['sqm_plan','sqm_act']],
+        dateFilter
+      );
+
+      fillTable(
+        'mach',
+        machRows,
+        ['date','acp_plan','acp_act','ww_plan','ww_act','doors_plan','doors_act','non_plan','non_act','ucw_plan','ucw_act'],
+        [['acp_plan','acp_act'],['ww_plan','ww_act'],['doors_plan','doors_act'],['non_plan','non_act'],['ucw_plan','ucw_act']],
+        dateFilter
+      );
     }
 
-    /***********************
-     * Init + Events
-     ***********************/
-    let FROM_D = '', TO_D = '', F_ENG = '', F_PROJ = '';
-    async function boot(){
+    // ---------- File Upload handlers ----------
+    function readFileAsText(file){
+      return new Promise((resolve,reject)=>{
+        const r = new FileReader();
+        r.onload = () => resolve(r.result);
+        r.onerror = reject;
+        r.readAsText(file);
+      });
+    }
+
+    async function handleAssyFile(file){
       try{
-        RAW = await loadCSV();
-      }catch(e){
-        alert('CSV load error. See console.'); console.error(e); RAW = [];
-      }
-      aggregate(RAW, FROM_D, TO_D, F_ENG, F_PROJ);
-      refresh();
-
-      // Actions
-      document.getElementById('btnApply').addEventListener('click', ()=>{
-        FROM_D = document.getElementById('fFrom').value || '';
-        TO_D   = document.getElementById('fTo').value || '';
-        F_ENG  = document.getElementById('fEngineer').value || '';
-        F_PROJ = document.getElementById('fProject').value || '';
-        aggregate(RAW, FROM_D, TO_D, F_ENG, F_PROJ);
-        refresh();
-      });
-      document.getElementById('btnReset').addEventListener('click', ()=>{
-        ['fFrom','fTo','fEngineer','fProject'].forEach(id=>document.getElementById(id).value='');
-        FROM_D=TO_D=F_ENG=F_PROJ='';
-        aggregate(RAW, FROM_D, TO_D, F_ENG, F_PROJ);
-        refresh();
-      });
+        const txt = await readFileAsText(file);
+        assyRows = parseCSV(txt);
+        renderAll(document.getElementById('dateFilter').value || '');
+      }catch(e){ alert('ASSY CSV read error'); console.error(e); }
+    }
+    async function handleMachFile(file){
+      try{
+        const txt = await readFileAsText(file);
+        machRows = parseCSV(txt);
+        renderAll(document.getElementById('dateFilter').value || '');
+      }catch(e){ alert('Machining CSV read error'); console.error(e); }
     }
 
-    window.addEventListener('DOMContentLoaded', boot);
+    // ---------- Init & Events ----------
+    (function(){
+      const dateInput = document.getElementById('dateFilter');
+      const clearBtn = document.getElementById('clearFilter');
+      const reloadBtn = document.getElementById('reloadBtn');
+      const assyInput = document.getElementById('assyFile');
+      const machInput = document.getElementById('machFile');
+
+      function getFilter(){ return dateInput.value || ''; }
+      function setFilter(v){ dateInput.value = v || ''; }
+
+      loadEmbedded();
+      renderAll(getFilter());
+
+      dateInput.addEventListener('change', ()=>renderAll(getFilter()));
+      clearBtn.addEventListener('click', ()=>{ setFilter(''); renderAll(''); });
+      reloadBtn.addEventListener('click', ()=>{ loadEmbedded(); renderAll(getFilter()); });
+
+      assyInput.addEventListener('change', (e)=>{ const f=e.target.files?.[0]; if(f) handleAssyFile(f); });
+      machInput.addEventListener('change', (e)=>{ const f=e.target.files?.[0]; if(f) handleMachFile(f); });
+    })();
   </script>
 </body>
 </html>
